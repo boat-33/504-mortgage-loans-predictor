@@ -12,7 +12,7 @@ myheading1='Predicting Mortgage Loan Approval'
 image1='ames_welcome.jpeg'
 tabtitle = 'Mortgage Loans'
 sourceurl = 'https://www.kaggle.com/burak3ergun/loan-data-set'
-githublink = 'https://github.com/plotly-dash-apps/504-mortgage-loans-predictor'
+githublink = 'https://github.com/boat-33/504-mortgage-loans-predictor'
 
 
 ########### Model featurse
@@ -24,7 +24,9 @@ features = ['Credit_History',
  'Property_Area',
  'Gender',
  'Education',
-  'Self_Employed'
+  'Self_Employed',
+  'Dependents',
+  'Married'
  ]
 
 
@@ -33,7 +35,7 @@ features = ['Credit_History',
 approved=pd.read_csv('model_components/approved_loans.csv')
 denied=pd.read_csv('model_components/denied_loans.csv')
 # random forest model
-filename = open('model_components/loan_approval_rf_model.pkl', 'rb')
+filename = open('model_components/rf.pkl', 'rb')
 rf = pickle.load(filename)
 filename.close()
 # encoder1
@@ -72,6 +74,8 @@ def make_predictions(listofargs, Threshold):
         df['Education'].replace({'Graduate': 1, 'Not Graduate': 0}, inplace = True)
         df['Self_Employed'].replace({'Yes': 1, 'No': 0}, inplace = True)
         df['LoanAmount'] = df['LoanAmount']*1000
+        df['Dependents'].replace({'0': 0, '1': 1, '2': 2, '3+': 3}, inplace = True)
+        df['Married'].replace({'Yes': 1, 'No': 0}, inplace = True)
 
         # transform the categorical variable using the same encoder we trained previously
         ohe=pd.DataFrame(encoder1.transform(df[['Property_Area']]).toarray())
@@ -88,9 +92,15 @@ def make_predictions(listofargs, Threshold):
         df['ln_LoanAmount'] = ss_scaler3.transform(np.array(ln_LoanAmount_raw).reshape(-1, 1))
 
         # drop & rearrange the columns in the order expected by your trained model!
-        df=df[['Gender', 'Education', 'Self_Employed', 'Credit_History',
-           'Property_Area_Semiurban', 'Property_Area_Urban', 'Property_Area_Rural', 'ln_monthly_return',
-           'ln_total_income', 'ln_LoanAmount']]
+        # df=df[['Gender', 'Education', 'Self_Employed', 'Credit_History', 
+        #    'Property_Area_Semiurban', 'Property_Area_Urban', 'Property_Area_Rural', 'ln_monthly_return',
+        #    'ln_total_income', 'ln_LoanAmount']]
+
+        df=df[['Gender', 'Married', 'Dependents', 'Education', 'Self_Employed', 'Credit_History',
+                'Property_Area_Semiurban', 'Property_Area_Urban', 'Property_Area_Rural','ln_monthly_return',
+                'ln_total_income', 'ln_LoanAmount'
+            ]]
+
 
         prob = rf.predict_proba(df)
         raw_approval_prob=prob[0][1]
@@ -104,10 +114,9 @@ def make_predictions(listofargs, Threshold):
 
 
 
-
 ## FUNCTION FOR VISUALIZATION
 def make_loans_cube(*args):
-    newdata=pd.DataFrame([args[:9]], columns=features)
+    newdata=pd.DataFrame([args[:11]], columns=features)
     newdata['Combined_Income']=newdata['ApplicantIncome'] + newdata['CoapplicantIncome']
 
     trace0=go.Scatter3d(
@@ -122,7 +131,9 @@ def make_loans_cube(*args):
             ["<br>Property Area: {}".format(x) for x in approved['Property_Area']],
             ["<br>Gender: {}".format(x) for x in approved['Gender']],
             ["<br>Education: {}".format(x) for x in approved['Education']],
-            ["<br>Self-Employed: {}".format(x) for x in approved['Self_Employed']]
+            ["<br>Self-Employed: {}".format(x) for x in approved['Self_Employed']] ,
+            ["<br>Dependents: {}".format(x) for x in approved['Dependents']],
+            ["<br>Married: {}".format(x) for x in approved['Married']]   
                 )) ,
         hovertemplate =
             '<b>Loan Amount: $%{x:.0f}K</b>'+
@@ -144,7 +155,9 @@ def make_loans_cube(*args):
             ["<br>Property Area: {}".format(x) for x in denied['Property_Area']],
             ["<br>Gender: {}".format(x) for x in denied['Gender']],
             ["<br>Education: {}".format(x) for x in denied['Education']],
-            ["<br>Self-Employed: {}".format(x) for x in denied['Self_Employed']]
+            ["<br>Self-Employed: {}".format(x) for x in denied['Self_Employed']],
+            ["<br>Dependents: {}".format(x) for x in denied['Dependents']],
+            ["<br>Married: {}".format(x) for x in denied['Married']]   
                 )) ,
         hovertemplate =
             '<b>Loan Amount: $%{x:.0f}K</b>'+
@@ -166,7 +179,9 @@ def make_loans_cube(*args):
             ["<br>Property Area: {}".format(x) for x in newdata['Property_Area']],
             ["<br>Gender: {}".format(x) for x in newdata['Gender']],
             ["<br>Education: {}".format(x) for x in newdata['Education']],
-            ["<br>Self-Employed: {}".format(x) for x in newdata['Self_Employed']]
+            ["<br>Self-Employed: {}".format(x) for x in newdata['Self_Employed']],
+            ["<br>Dependents: {}".format(x) for x in newdata['Dependents']],
+            ["<br>Married: {}".format(x) for x in newdata['Married']],     
                 )) ,
         hovertemplate =
             '<b>Loan Amount: $%{x:.0f}K</b>'+
@@ -233,6 +248,14 @@ app.layout = html.Div(children=[
                 dcc.Dropdown(id='Self_Employed',
                     options=[{'label': i, 'value': i} for i in ['No','Yes']],
                     value='No'),
+                html.Div('Dependents'),
+                dcc.Dropdown(id='Dependents',
+                    options=[{'label': i, 'value': i} for i in ['0', '1','2', '3+']],
+                    value='1'),
+                html.Div('Married'),
+                dcc.Dropdown(id='Married',
+                    options=[{'label': i, 'value': i} for i in ['No','Yes']],
+                    value='No'),
                 html.Div('Approval Threshold'),
                 dcc.Input(id='Threshold', value=50, type='number', min=0, max=100, step=1),
 
@@ -282,13 +305,16 @@ app.layout = html.Div(children=[
      State(component_id='Gender', component_property='value'),
      State(component_id='Education', component_property='value'),
      State(component_id='Self_Employed', component_property='value'),
+     State(component_id='Dependents', component_property='value'),
+     State(component_id='Married', component_property='value'),
+
      State(component_id='Threshold', component_property='value'),
 
      Input(component_id='submit-val', component_property='n_clicks'),
     )
 def func(*args):
-    listofargs=[arg for arg in args[:9]]
-    return make_predictions(listofargs, args[9])
+    listofargs=[arg for arg in args[:11]]
+    return make_predictions(listofargs, args[11])
 
 
 ######### Define Callback: Visualization
@@ -305,6 +331,8 @@ def func(*args):
             State(component_id='Gender', component_property='value'),
             State(component_id='Education', component_property='value'),
             State(component_id='Self_Employed', component_property='value'),
+            State(component_id='Dependents', component_property='value'),
+            State(component_id='Married', component_property='value'),
 
             Input(component_id='submit-val', component_property='n_clicks'),
     )
